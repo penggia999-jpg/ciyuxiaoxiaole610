@@ -1,14 +1,19 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>生字消消乐 · 一年级全册（部编版）</title>
     <style>
+        /* 2. 核心优化：利用 CSS 彻底移除移动端 300ms 点击延迟，禁用所有原生手势 */
         * {
             box-sizing: border-box;
             user-select: none;
+            -webkit-user-select: none; /* 禁用长按选择文字 */
+            touch-action: none;        /* 彻底禁用浏览器的所有默认手势（缩放、滚动等），交给JS控 */
+            -webkit-tap-highlight-color: transparent; /* 移除点击时阴影闪烁 */
         }
+        
         body {
             margin: 0;
             min-height: 100vh;
@@ -19,6 +24,12 @@
             justify-content: center;
             align-items: center;
         }
+        
+        /* 允许游戏内容区域在必要时单独内部滚动 */
+        .game-board {
+            touch-action: pan-y !important; /* 仅允许上下滑动内容，不影响点击 */
+        }
+
         .game-wrapper {
             max-width: 1400px;
             width: 100%;
@@ -44,6 +55,10 @@
             justify-content: center;
             gap: 12px 20px;
             margin-bottom: 25px;
+        }
+        /* 顶部菜单由于有下拉框，单独恢复默认触摸行为 */
+        .filters, .toolbar {
+            touch-action: auto !important;
         }
         .filter-group {
             display: flex;
@@ -132,7 +147,7 @@
             color: #5A3E2B;
             box-shadow: 0 8px 0 #CDB28A;
             cursor: pointer;
-            transition: 0.08s linear;
+            transition: transform 0.05s linear; /* 缩短过渡动画时间，提高连击操作跟手度 */
             padding: 8px;
             word-break: break-word;
         }
@@ -150,7 +165,7 @@
             pointer-events: none;
             opacity: 0;
             transform: scale(0.7);
-            transition: 0.13s;
+            transition: 0.1s;
         }
         .duel-container {
             display: flex;
@@ -383,7 +398,7 @@
         "字": "zì","红": "hóng","动": "dòng","万": "wàn","无": "wú","明": "míng",
         "文": "wén","卡": "kǎ","片": "piàn","合": "hé",
         "物": "wù","造": "zào","运": "yùn","欢": "huān","房": "fáng","网": "wǎng",
-        "对": "duì","今": "jīn","雪": "xwě","细": "xì","夕": "xī","语": "yǔ",
+        "对": "duì","今": "jīn","雪": "xuě","细": "xì","夕": "xī","语": "yǔ",
         "打": "dǎ","皮": "pí","跑": "pǎo","足": "zú","沙": "shā","包": "bāo",
         "近": "jìn","习": "xí","远": "yuǎn","学": "xué","玉": "yù","义": "yì",
         "饱": "bǎo","抱": "bào",
@@ -474,6 +489,7 @@
         }
     }
 
+    // 这里保留普通的点击行为唤醒音频
     document.addEventListener('touchstart', unlockAndPreloadAudio, { passive: true });
     document.addEventListener('click', unlockAndPreloadAudio);
 
@@ -486,7 +502,7 @@
 
     let redCards = [], blueCards = [], redMatched = 0, blueMatched = 0, redTotal = 0, blueTotal = 0;
     let redSelected = null, blueSelected = null, redLock = false, blueLock = false;
-    let winnerDeclared = false; // 仅标记是否已弹出过第一名惊喜
+    let winnerDeclared = false;
 
     const singleAreaDiv = document.getElementById('singleArea');
     const duelAreaDiv = document.getElementById('duelArea');
@@ -506,6 +522,20 @@
     const prevLessonBtn = document.getElementById('prevLessonBtn');
     const nextLessonBtn = document.getElementById('nextLessonBtn');
     const muteBtn = document.getElementById('muteBtn');
+
+    // 绑定高性能多端点击事件的处理函数
+    function bindFastClick(element, handler) {
+        // 移动端/iPadOS 使用 touchstart 瞬间响应，并拦截默认行为防止穿透和双击误判
+        element.addEventListener('touchstart', function(e) {
+            e.preventDefault(); // 极其重要：掐断系统300ms判断和缩放识别
+            handler(e);
+        }, { passive: false });
+
+        // 电脑端/常规环境保留 click 降级兼容
+        element.addEventListener('click', function(e) {
+            handler(e);
+        });
+    }
 
     function updateLessonOptions() {
         const key = `${gradeSelect.value}_${volumeSelect.value}`;
@@ -609,7 +639,10 @@
             if (singleSelectedIdx === idx) div.classList.add('selected');
             if (card.type === 'pinyin') div.setAttribute('data-type', 'pinyin');
             div.textContent = card.display;
-            div.onclick = () => onSingleClick(idx);
+            
+            // 绑定毫秒级瞬发点击事件
+            bindFastClick(div, () => onSingleClick(idx));
+            
             singleBoardDiv.appendChild(div);
         });
     }
@@ -668,7 +701,7 @@
                 singleSelectedIdx = null;
                 renderSingleBoard();
                 singleLock = false;
-            }, 500);
+            }, 400); // 降低锁定时长提高连击连点效率
             singleSelectedIdx = null;
             renderSingleBoard();
         }
@@ -686,7 +719,7 @@
         redTotal = words.length; blueTotal = words.length;
         redSelected = null; blueSelected = null;
         redLock = false; blueLock = false;
-        winnerDeclared = false; // 清除胜负宣告锁
+        winnerDeclared = false;
         redScoreSpan.innerText = redMatched; redTotalSpan.innerText = redTotal;
         blueScoreSpan.innerText = blueMatched; blueTotalSpan.innerText = blueTotal;
         renderDuelBoards();
@@ -705,7 +738,10 @@
             if (redSelected === idx) div.classList.add('selected');
             if (card.type === 'pinyin') div.setAttribute('data-type', 'pinyin');
             div.textContent = card.display;
-            div.onclick = () => onRedClick(idx);
+            
+            // 双人模式强制升级触摸即动，红蓝互不锁死
+            bindFastClick(div, () => onRedClick(idx));
+            
             redBoardDiv.appendChild(div);
         });
         blueBoardDiv.innerHTML = '';
@@ -716,13 +752,15 @@
             if (blueSelected === idx) div.classList.add('selected');
             if (card.type === 'pinyin') div.setAttribute('data-type', 'pinyin');
             div.textContent = card.display;
-            div.onclick = () => onBlueClick(idx);
+            
+            bindFastClick(div, () => onBlueClick(idx));
+            
             blueBoardDiv.appendChild(div);
         });
     }
 
     function onRedClick(idx) {
-        if (redLock) return; // 移除全局激活判定锁，允许落后方继续玩
+        if (redLock) return;
         unlockAndPreloadAudio();
         const card = redCards[idx];
         if (card.matched) return;
@@ -736,7 +774,6 @@
             redScoreSpan.innerText = redMatched;
             renderDuelBoards(); updateScoreUI();
             
-            // 只要你是第一个拿满分的，就弹出获胜
             if (redMatched === redTotal && !winnerDeclared) {
                 winnerDeclared = true; 
                 playSound(winAudio);
@@ -745,14 +782,14 @@
         } else {
             playSound(wrongAudio);
             redLock = true;
-            setTimeout(() => { redSelected = null; renderDuelBoards(); redLock = false; }, 500);
+            setTimeout(() => { redSelected = null; renderDuelBoards(); redLock = false; }, 400);
             redSelected = null;
             renderDuelBoards();
         }
     }
 
     function onBlueClick(idx) {
-        if (blueLock) return; // 移除全局激活判定锁，允许落后方继续玩
+        if (blueLock) return;
         unlockAndPreloadAudio();
         const card = blueCards[idx];
         if (card.matched) return;
@@ -766,7 +803,6 @@
             blueScoreSpan.innerText = blueMatched;
             renderDuelBoards(); updateScoreUI();
             
-            // 只要你是第一个拿满分的，就弹出获胜
             if (blueMatched === blueTotal && !winnerDeclared) {
                 winnerDeclared = true;
                 playSound(winAudio);
@@ -775,7 +811,7 @@
         } else {
             playSound(wrongAudio);
             blueLock = true;
-            setTimeout(() => { blueSelected = null; renderDuelBoards(); blueLock = false; }, 500);
+            setTimeout(() => { blueSelected = null; renderDuelBoards(); blueLock = false; }, 400);
             blueSelected = null;
             renderDuelBoards();
         }
