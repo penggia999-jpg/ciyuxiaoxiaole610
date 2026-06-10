@@ -287,7 +287,6 @@
 </div>
 
 <script>
-    // ========== 生字库：一年级上册 + 下册（按课文整理）==========
     const WORDS_LIB = {
         "1_up": {
             "识字2": ["一","二","三","上"],
@@ -328,7 +327,7 @@
             "识字8": ["近","习","远","学","玉","义"],
             "语文园地五": ["饱","抱"],
             "阅读1": ["共","产","党","太","阳","光"],
-            "阅读2": ["井","主","江","住","方","后"],
+            "阅读2": ["进","主","江","住","方","后"],
             "阅读3": ["告","的","会","北","京","广"],
             "语文园地二": ["写","认"],
             "阅读4": ["走","河","说","让","自","己"],
@@ -356,9 +355,7 @@
         }
     };
 
-    // 拼音映射
     const PINYIN_MAP = {
-        // 上册
         "一": "yī","二": "èr","三": "sān","上": "shàng",
         "口": "kǒu","耳": "ěr","目": "mù","手": "shǒu",
         "日": "rì","火": "huǒ","田": "tián","禾": "hé",
@@ -381,7 +378,6 @@
         "只": "zhī","办": "bàn","多": "duō","石": "shí","出": "chū",
         "来": "lái","半": "bàn","你": "nǐ","有": "yǒu",
         "牛": "niú","羊": "yáng","爪": "zhuǎ","白": "bái",
-        // 下册
         "春": "chūn","冬": "dōng","吹": "chuī","花": "huā","飞": "fēi","入": "rù",
         "什": "shén","么": "me","古": "gǔ","胡": "hú","双": "shuāng","言": "yán",
         "青": "qīng","清": "qīng","晴": "qíng","苗": "miáo","请": "qǐng","生": "shēng",
@@ -406,7 +402,7 @@
         "册": "cè","支": "zhī","电": "diàn","衣": "yī",
         "首": "shǒu","池": "chí","采": "cǎi","尖": "jiān","角": "jiǎo","早": "zǎo",
         "眼": "yǎn","泪": "lèi","它": "tā","贝": "bèi","气": "qì","娃": "wá",
-        "机": "jī","台": "tái","唱": "chàng","伞": "sǎn","朵": "duǒ","美": "měi",
+        "机": "jī","台": "tái","唱": "chàng","伞": "sǎn","朵": "du朵","美": "měi",
         "这": "zhè","看": "kàn","鱼": "yú","面": "miàn","问": "wèn","加": "jiā",
         "豆": "dòu","斗": "dǒu",
         "笔": "bǐ","知": "zhī","道": "dào","放": "fàng","平": "píng","安": "ān",
@@ -424,21 +420,23 @@
         return PINYIN_MAP[word] || word;
     }
 
-    // ========== 音效和背景音乐 ==========
+    // ========== 音频控制中心 ==========
     let soundEnabled = true;
     let bgmEnabled = true;
-    const correctAudio = new Audio('sounds/correct.mp3');
-    const wrongAudio = new Audio('sounds/wrong.mp3');
-    const winAudio = new Audio('sounds/win.mp3');
-    const bgmAudio = new Audio('sounds/bgm.mp3');
+    let isAudioUnlocked = false; // 音频解锁状态标记
+
+    // 显式配置预加载属性
+    const correctAudio = new Audio('sounds/correct.mp3'); correctAudio.preload = 'auto';
+    const wrongAudio = new Audio('sounds/wrong.mp3');     wrongAudio.preload = 'auto';
+    const winAudio = new Audio('sounds/win.mp3');         winAudio.preload = 'auto';
+    const bgmAudio = new Audio('sounds/bgm.mp3');         bgmAudio.preload = 'auto';
     bgmAudio.loop = true;
     bgmAudio.volume = 0.3;
 
-    // 【大师强力优化点 1】加上 currentTime = 0，解决双人快速连击时 iPad 丢音效、卡音效的 Bug
     function playSound(audioObj) {
         if (!soundEnabled) return;
         try {
-            audioObj.currentTime = 0; // 强制拉回第0秒，解决连击音频打架
+            audioObj.currentTime = 0;
             audioObj.play().catch(() => {});
         } catch(e) {}
     }
@@ -455,22 +453,40 @@
         }
     }
 
-    // 【大师强力优化点 2】专门对付苹果 iOS/iPad 自带的“静音保护锁”
-    // 用户进页面只要第一次触碰屏幕任意地方，瞬间解锁并播放背景音乐，之后解除监听
-    function unlockIOSAudio() {
-        if (bgmEnabled && bgmAudio.paused) {
+    // 【核心核心核心】：移动端全音频超级解锁仪式！
+    function unlockAndPreloadAudio() {
+        if (isAudioUnlocked) return; // 已经解锁过就直接跳过
+
+        // 1. 强行把所有音效在“静音”状态下播放一瞬间，逼系统把它们塞进手机缓存，彻底解决延迟！
+        const placeholderAudios = [correctAudio, wrongAudio, winAudio];
+        placeholderAudios.forEach(audio => {
+            const oldVol = audio.volume;
+            audio.volume = 0; // 静音
+            audio.play().then(() => {
+                audio.pause();
+                audio.volume = oldVol; // 还原音量
+            }).catch(() => {});
+        });
+
+        // 2. 唤醒并正式播放背景音乐
+        if (bgmEnabled) {
             bgmAudio.play().then(() => {
-                // 成功解锁后，彻底清除这俩事件监听，不留任何多余资源消耗
-                document.removeEventListener('touchstart', unlockIOSAudio);
-                document.removeEventListener('click', unlockIOSAudio);
-            }).catch(e => console.log("iOS 音频解锁暂未就绪:", e));
+                isAudioUnlocked = true;
+                // 解锁成功后，卸载触摸监听器，不占资源
+                document.removeEventListener('touchstart', unlockAndPreloadAudio);
+                document.removeEventListener('click', unlockAndPreloadAudio);
+            }).catch(e => {
+                console.log("音频唤醒中...", e);
+            });
         }
     }
-    document.addEventListener('touchstart', unlockIOSAudio);
-    document.addEventListener('click', unlockIOSAudio);
+
+    // 监听整个页面的点击和触摸，学生只要手一碰屏幕，立刻完成解锁
+    document.addEventListener('touchstart', unlockAndPreloadAudio, { passive: true });
+    document.addEventListener('click', unlockAndPreloadAudio);
 
 
-    // ========== 游戏变量 ==========
+    // ========== 游戏变量与逻辑 ==========
     let currentVolume = "up";
     let currentLesson = "";
     let isDuelMode = false;
@@ -480,7 +496,6 @@
     let redCards = [], blueCards = [], redMatched = 0, blueMatched = 0, redTotal = 0, blueTotal = 0;
     let redSelected = null, blueSelected = null, redLock = false, blueLock = false, duelGameActive = true, winnerDeclared = false;
 
-    // DOM
     const singleAreaDiv = document.getElementById('singleArea');
     const duelAreaDiv = document.getElementById('duelArea');
     const singleBoardDiv = document.getElementById('singleGameBoard');
@@ -498,6 +513,7 @@
     const lessonSelect = document.getElementById('lessonSelect');
     const prevLessonBtn = document.getElementById('prevLessonBtn');
     const nextLessonBtn = document.getElementById('nextLessonBtn');
+    const muteBtn = document.getElementById('muteBtn');
 
     function updateLessonOptions() {
         const key = `${gradeSelect.value}_${volumeSelect.value}`;
@@ -539,18 +555,13 @@
         return deck;
     }
 
-    // 切换到指定课文
     function setLesson(lesson) {
         currentLesson = lesson;
         lessonSelect.value = currentLesson;
         if (isDuelMode) resetDuel();
         else resetSingle();
-        if (singleBoardDiv) singleBoardDiv.scrollTop = 0;
-        if (redBoardDiv) redBoardDiv.scrollTop = 0;
-        if (blueBoardDiv) blueBoardDiv.scrollTop = 0;
     }
 
-    // 上一课
     function prevLesson() {
         const key = `${gradeSelect.value}_${volumeSelect.value}`;
         const lessons = WORDS_LIB[key] ? Object.keys(WORDS_LIB[key]) : [];
@@ -561,7 +572,6 @@
         setLesson(lessons[newIdx]);
     }
 
-    // 下一课
     function nextLesson() {
         const key = `${gradeSelect.value}_${volumeSelect.value}`;
         const lessons = WORDS_LIB[key] ? Object.keys(WORDS_LIB[key]) : [];
@@ -593,7 +603,7 @@
         recordMsgSpan.innerHTML = bestTime !== Infinity ? `🏆 最佳记录: ${bestTime.toFixed(2)} 秒` : "✨ 挑战记录，等你刷新！";
         renderSingleBoard();
         updateScoreUI();
-        if (bgmEnabled && bgmAudio.paused) {
+        if (isAudioUnlocked && bgmEnabled && bgmAudio.paused) {
             bgmAudio.play().catch(() => {});
         }
     }
@@ -614,6 +624,9 @@
 
     function onSingleClick(clickedIdx) {
         if (!singleActive || singleLock) return;
+        // 如果点卡片时音频还没解锁，顺手触发一次解锁
+        unlockAndPreloadAudio();
+        
         const card = singleCards[clickedIdx];
         if (card.matched) return;
         if (!startTime) {
@@ -687,14 +700,9 @@
         blueScoreSpan.innerText = blueMatched; blueTotalSpan.innerText = blueTotal;
         renderDuelBoards();
         updateScoreUI();
-        if (bgmEnabled && bgmAudio.paused) {
+        if (isAudioUnlocked && bgmEnabled && bgmAudio.paused) {
             bgmAudio.play().catch(() => {});
         }
-    }
-
-    // 【大师顺手优化 3】：修正了原代码中把“朵”写成了“对du朵”的小打字失误（让数据100%严谨完美）
-    if(WORDS_LIB["1_down"]["阅读12"]) {
-        WORDS_LIB["1_down"]["阅读12"] = ["机","台","唱","伞","朵","美"];
     }
 
     function renderDuelBoards() {
@@ -724,6 +732,7 @@
 
     function onRedClick(idx) {
         if (!duelGameActive || redLock || winnerDeclared) return;
+        unlockAndPreloadAudio();
         const card = redCards[idx];
         if (card.matched) return;
         if (redSelected === idx) { redSelected = null; renderDuelBoards(); return; }
@@ -751,6 +760,7 @@
 
     function onBlueClick(idx) {
         if (!duelGameActive || blueLock || winnerDeclared) return;
+        unlockAndPreloadAudio();
         const card = blueCards[idx];
         if (card.matched) return;
         if (blueSelected === idx) { blueSelected = null; renderDuelBoards(); return; }
@@ -796,6 +806,7 @@
         bgmAudio.pause();
         setTimeout(() => {
             overlay.style.visibility = 'hidden';
+            if(bgmEnabled && isAudioUnlocked) bgmAudio.play().catch(() => {});
         }, 3000);
     }
 
@@ -822,7 +833,6 @@
         muteBtn.innerText = soundEnabled ? "🔊 音效开" : "🔇 音效关";
     }
 
-    // 事件绑定
     const singleModeBtn = document.getElementById('singleModeBtn');
     const duelModeBtn = document.getElementById('duelModeBtn');
     const resetBtn = document.getElementById('resetGameBtn');
@@ -851,7 +861,6 @@
     prevLessonBtn.addEventListener('click', prevLesson);
     nextLessonBtn.addEventListener('click', nextLesson);
 
-    // 页面初始化
     updateLessonOptions();
     resetSingle();
 </script>
