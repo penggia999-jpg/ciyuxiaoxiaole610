@@ -3,7 +3,6 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>生字消消乐 · 一年级全册（部编版）</title>
     <style>
         * {
@@ -384,7 +383,7 @@
         "字": "zì","红": "hóng","动": "dòng","万": "wàn","无": "wú","明": "míng",
         "文": "wén","卡": "kǎ","片": "piàn","合": "hé",
         "物": "wù","造": "zào","运": "yùn","欢": "huān","房": "fáng","网": "wǎng",
-        "对": "duì","今": "jīn","雪": "xuě","细": "xì","夕": "xī","语": "yǔ",
+        "对": "duì","今": "jīn","雪": "xwě","细": "xì","夕": "xī","语": "yǔ",
         "打": "dǎ","皮": "pí","跑": "pǎo","足": "zú","沙": "shā","包": "bāo",
         "近": "jìn","习": "xí","远": "yuǎn","学": "xué","玉": "yù","义": "yì",
         "饱": "bǎo","抱": "bào",
@@ -402,7 +401,7 @@
         "册": "cè","支": "zhī","电": "diàn","衣": "yī",
         "首": "shǒu","池": "chí","采": "cǎi","尖": "jiān","角": "jiǎo","早": "zǎo",
         "眼": "yǎn","泪": "lèi","它": "tā","贝": "bèi","气": "qì","娃": "wá",
-        "机": "jī","台": "tái","唱": "chàng","伞": "sǎn","朵": "du朵","美": "měi",
+        "机": "jī","台": "tái","唱": "chàng","伞": "sǎn","朵": "duǒ","美": "měi",
         "这": "zhè","看": "kàn","鱼": "yú","面": "miàn","问": "wèn","加": "jiā",
         "豆": "dòu","斗": "dǒu",
         "笔": "bǐ","知": "zhī","道": "dào","放": "fàng","平": "píng","安": "ān",
@@ -412,7 +411,7 @@
         "巾": "jīn","洗": "xǐ",
         "她": "tā","空": "kōng","还": "hái","干": "gàn","身": "shēn","星": "xīng","久": "jiǔ",
         "吓": "xià","为": "wèi","怕": "pà","家": "jiā","象": "xiàng","没": "méi","到": "dào",
-        "向": "xiàng","边": "biān","行": "xíng","草": "cǎo","赶": "gǎn","过": "guò","找": "zhǎo",
+        "向": "xiàng","边": "biān","行": "xíng","草": "cǎo","赶": "gàn","过": "guò","找": "zhǎo",
         "页": "yè","户": "hù","交": "jiāo","父": "fù"
     };
 
@@ -423,9 +422,8 @@
     // ========== 音频控制中心 ==========
     let soundEnabled = true;
     let bgmEnabled = true;
-    let isAudioUnlocked = false; // 音频解锁状态标记
+    let isAudioUnlocked = false;
 
-    // 显式配置预加载属性
     const correctAudio = new Audio('sounds/correct.mp3'); correctAudio.preload = 'auto';
     const wrongAudio = new Audio('sounds/wrong.mp3');     wrongAudio.preload = 'auto';
     const winAudio = new Audio('sounds/win.mp3');         winAudio.preload = 'auto';
@@ -453,26 +451,21 @@
         }
     }
 
-    // 【核心核心核心】：移动端全音频超级解锁仪式！
     function unlockAndPreloadAudio() {
-        if (isAudioUnlocked) return; // 已经解锁过就直接跳过
-
-        // 1. 强行把所有音效在“静音”状态下播放一瞬间，逼系统把它们塞进手机缓存，彻底解决延迟！
+        if (isAudioUnlocked) return;
         const placeholderAudios = [correctAudio, wrongAudio, winAudio];
         placeholderAudios.forEach(audio => {
             const oldVol = audio.volume;
-            audio.volume = 0; // 静音
+            audio.volume = 0;
             audio.play().then(() => {
                 audio.pause();
-                audio.volume = oldVol; // 还原音量
+                audio.volume = oldVol;
             }).catch(() => {});
         });
 
-        // 2. 唤醒并正式播放背景音乐
         if (bgmEnabled) {
             bgmAudio.play().then(() => {
                 isAudioUnlocked = true;
-                // 解锁成功后，卸载触摸监听器，不占资源
                 document.removeEventListener('touchstart', unlockAndPreloadAudio);
                 document.removeEventListener('click', unlockAndPreloadAudio);
             }).catch(e => {
@@ -481,10 +474,8 @@
         }
     }
 
-    // 监听整个页面的点击和触摸，学生只要手一碰屏幕，立刻完成解锁
     document.addEventListener('touchstart', unlockAndPreloadAudio, { passive: true });
     document.addEventListener('click', unlockAndPreloadAudio);
-
 
     // ========== 游戏变量与逻辑 ==========
     let currentVolume = "up";
@@ -494,7 +485,8 @@
     let startTime = null, timerInterval = null, bestTimeKey = "best_1_up_", bestTime = Infinity;
 
     let redCards = [], blueCards = [], redMatched = 0, blueMatched = 0, redTotal = 0, blueTotal = 0;
-    let redSelected = null, blueSelected = null, redLock = false, blueLock = false, duelGameActive = true, winnerDeclared = false;
+    let redSelected = null, blueSelected = null, redLock = false, blueLock = false;
+    let winnerDeclared = false; // 仅标记是否已弹出过第一名惊喜
 
     const singleAreaDiv = document.getElementById('singleArea');
     const duelAreaDiv = document.getElementById('duelArea');
@@ -624,7 +616,6 @@
 
     function onSingleClick(clickedIdx) {
         if (!singleActive || singleLock) return;
-        // 如果点卡片时音频还没解锁，顺手触发一次解锁
         unlockAndPreloadAudio();
         
         const card = singleCards[clickedIdx];
@@ -695,7 +686,7 @@
         redTotal = words.length; blueTotal = words.length;
         redSelected = null; blueSelected = null;
         redLock = false; blueLock = false;
-        duelGameActive = true; winnerDeclared = false;
+        winnerDeclared = false; // 清除胜负宣告锁
         redScoreSpan.innerText = redMatched; redTotalSpan.innerText = redTotal;
         blueScoreSpan.innerText = blueMatched; blueTotalSpan.innerText = blueTotal;
         renderDuelBoards();
@@ -731,7 +722,7 @@
     }
 
     function onRedClick(idx) {
-        if (!duelGameActive || redLock || winnerDeclared) return;
+        if (redLock) return; // 移除全局激活判定锁，允许落后方继续玩
         unlockAndPreloadAudio();
         const card = redCards[idx];
         if (card.matched) return;
@@ -744,8 +735,10 @@
             playSound(correctAudio);
             redScoreSpan.innerText = redMatched;
             renderDuelBoards(); updateScoreUI();
+            
+            // 只要你是第一个拿满分的，就弹出获胜
             if (redMatched === redTotal && !winnerDeclared) {
-                winnerDeclared = true; duelGameActive = false;
+                winnerDeclared = true; 
                 playSound(winAudio);
                 showVictory("🏆 红方胜利！🏆");
             }
@@ -759,7 +752,7 @@
     }
 
     function onBlueClick(idx) {
-        if (!duelGameActive || blueLock || winnerDeclared) return;
+        if (blueLock) return; // 移除全局激活判定锁，允许落后方继续玩
         unlockAndPreloadAudio();
         const card = blueCards[idx];
         if (card.matched) return;
@@ -772,8 +765,10 @@
             playSound(correctAudio);
             blueScoreSpan.innerText = blueMatched;
             renderDuelBoards(); updateScoreUI();
+            
+            // 只要你是第一个拿满分的，就弹出获胜
             if (blueMatched === blueTotal && !winnerDeclared) {
-                winnerDeclared = true; duelGameActive = false;
+                winnerDeclared = true;
                 playSound(winAudio);
                 showVictory("🏆 蓝方胜利！🏆");
             }
